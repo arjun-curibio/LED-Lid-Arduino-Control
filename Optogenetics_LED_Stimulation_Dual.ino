@@ -13,6 +13,8 @@ const int LEDpins = 7;
 const int switchingPin = 2;
 const int outputPin5V = 24;
 
+const int pulsingModePin = 6;
+
 /////////////////////////////////// SET PARAMETERS BELOW ///////////////////////////////////////
 const float stimRate = 1; // Hz
 unsigned long pulseDuration = 100; // ms
@@ -25,10 +27,12 @@ void setup() {
   pinMode(switchingPin, INPUT);
   pinMode(outputPin5V, OUTPUT);
   
+  pinMode(pulsingModePin, INPUT);
+
   digitalWrite(LEDpins, LOW);
   digitalWrite(outputPin5V, HIGH);
 
-  attachInterrupt(digitalPinToInterrupt(switchingPin), tetanus, RISING);
+  attachInterrupt(digitalPinToInterrupt(switchingPin), myISR, RISING);
   // Uncomment below if serial comm needed (debugging)
   Serial.begin(9600);
   Serial.println(stimPeriod);
@@ -40,30 +44,31 @@ void loop() {
     tetanus();
     flag = false;
   }
-  int currentTime = millis();
-  
-  // Set all to high (turn LEDs on)
-  digitalWrite(LEDpins,HIGH);
-  Serial.print("ON: ");
-  Serial.print(millis());
-  Serial.print(',');
-  // pause for pulse duration
-  int t = millis();
-  while (t - currentTime < pulseDuration) {
-    t = millis();
+  if (digitalRead(pulsingModePin) != 0) {
+    unsigned long currentTime = millis();
     
-  }
-  
-  // Set all to low (turn LEDs off)
-  digitalWrite(LEDpins,LOW);
-  Serial.print("OFF: ");
-  Serial.println(t);
-  // pause for rest of stimulation frequency 
-  t = millis();
-  while (t - currentTime < stimPeriod){
+    // Set all to high (turn LEDs on)
+    digitalWrite(LEDpins,HIGH);
+    Serial.print("ON: ");
+    Serial.print(millis());
+    Serial.print(',');
+    // pause for pulse duration
+    unsigned long t = millis();
+    while (t - currentTime < pulseDuration) {
+      t = millis();
+      
+    }
+    
+    // Set all to low (turn LEDs off)
+    digitalWrite(LEDpins,LOW);
+    Serial.print("OFF: ");
+    Serial.println(t);
+    // pause for rest of stimulation frequency 
     t = millis();
+    while (t - currentTime < stimPeriod){
+      t = millis();
+    }
   }
-
 }
 
 void myISR() {
@@ -73,16 +78,20 @@ void tetanus() {
   flag = true;
   digitalWrite(LEDpins, LOW);
   
-  Serial.print("Delay before Tetanus: ");
-  Serial.print(millis());
-  delay(3000);
+  if (digitalRead(pulsingModePin) == 0){
+    Serial.print("Delay before Tetanus: ");
+    Serial.print(millis());
+    delay(3000);
+  }
+  
   // Turn them on for two seconds
   digitalWrite(LEDpins, HIGH);
   Serial.print("; In Tetanus; ");
+  Serial.print(millis());
   delay(2000);
   digitalWrite(LEDpins, LOW);
   Serial.print("End Tetanus: ");
   Serial.println(millis());
-  delay(10000);
+  delay(1000);
 }
   
