@@ -6,46 +6,67 @@
  *  BUGS: Cannot set stimRate below 1 Hz.  NEED TO FIX.
  *        11/4/21 - FIXED
  * 
- * 
+ *  
+ *  Digital Pin 2:  Button or switch for tetanic stimulation.
+ *                    Interrupt to trigger a flag which starts tetanus routine.  This is needed for correct timing.
+ *                    Turns LEDs on for 2 seconds (or user-defined)
+ *  
+ *  Digital Pin 6:  Switch for turning pulsing on and off.  
+ *                    HIGH to begin pulsing, LOW to stop pulsing.
+ *  
+ *  Digital Pin 7:  Control signal for all LEDS through transistor
+ *  
+ *  Digital Pin 24: Constant 5V that feeds into Pin 2.  Used to avoid using 5V pin, in case that's used for the LEDs
+ *  
+ *  
+ *  Eventually, integrate with Processing or Python to create a GUI that Alec can control: 
+ *      1) Pulse Duration
+ *      2) Pulse Frequency
+ *      3) Tetanic stimulation duration
+ *      4) Light Intensity
  */
 
-const int LEDpins = 7;
-const int switchingPin = 2;
-const int outputPin5V = 24;
-
-const int pulsingModePin = 6;
-
 /////////////////////////////////// SET PARAMETERS BELOW ///////////////////////////////////////
-const float stimRate = 1; // Hz
-unsigned long pulseDuration = 100; // ms
+const float FREQUENCY = 1; // Hz
+unsigned long PULSE_WIDTH = 100; // ms
+unsigned long TETANUS_DURATION = 2000; // ms
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-volatile boolean flag = false;
-const int stimPeriod = 1000 / stimRate; // ms
+
+// PIN Definitions
+const int LEDpins = 7;
+const int interruptPin = 2;
+const int const5VPin = 24;
+const int pulsingModePin = 6;
+
+volatile boolean flag = false; // ISR flag
+
+const int period = 1000 / FREQUENCY; // ms
 void setup() {
-  pinMode(LEDpins, OUTPUT);
-  pinMode(switchingPin, INPUT);
-  pinMode(outputPin5V, OUTPUT);
-  
-  pinMode(pulsingModePin, INPUT);
+  pinMode(LEDpins,        OUTPUT); // pin output goes to transistor, turns all LEDs on and off
+  pinMode(interruptPin,   INPUT); // Pin to trigger interrupt on HIGH
+  pinMode(const5VPin,     OUTPUT); // Pin that's always HIGH
+  pinMode(pulsingModePin, INPUT); // toggle for pulsing mode on and off
 
-  digitalWrite(LEDpins, LOW);
-  digitalWrite(outputPin5V, HIGH);
+  digitalWrite(LEDpins,     LOW); // starts LOW
+  digitalWrite(const5VPin,  HIGH); // starts (and stays) HIGH
 
-  attachInterrupt(digitalPinToInterrupt(switchingPin), myISR, RISING);
+  attachInterrupt(digitalPinToInterrupt(interruptPin), myISR, RISING);
   // Uncomment below if serial comm needed (debugging)
   Serial.begin(9600);
-  Serial.println(stimPeriod);
+  Serial.println(period);
 }
 
 void loop() {
-  
+  unsigned long loopStartTime = millis(); // Get 
   if (flag == true) {
-    tetanus();
+    if (digitalRead(pulsingModePin) == 0) {
+      tetanus();
+    }
     flag = false;
   }
+
   if (digitalRead(pulsingModePin) != 0) {
-    unsigned long currentTime = millis();
     
     // Set all to high (turn LEDs on)
     digitalWrite(LEDpins,HIGH);
@@ -54,7 +75,7 @@ void loop() {
     Serial.print(',');
     // pause for pulse duration
     unsigned long t = millis();
-    while (t - currentTime < pulseDuration) {
+    while (t - loopStartTime < PULSE_WIDTH) {
       t = millis();
       
     }
@@ -65,7 +86,7 @@ void loop() {
     Serial.println(t);
     // pause for rest of stimulation frequency 
     t = millis();
-    while (t - currentTime < stimPeriod){
+    while (t - loopStartTime < period){
       t = millis();
     }
   }
@@ -77,21 +98,23 @@ void myISR() {
 void tetanus() {
   flag = true;
   digitalWrite(LEDpins, LOW);
-  
-  if (digitalRead(pulsingModePin) == 0){
-    Serial.print("Delay before Tetanus: ");
-    Serial.print(millis());
-    delay(3000);
-  }
+  unsigned long currentTime = millis();
   
   // Turn them on for two seconds
   digitalWrite(LEDpins, HIGH);
-  Serial.print("; In Tetanus; ");
+  Serial.print("; In Tetanus ");
   Serial.print(millis());
-  delay(2000);
+  currentTime = millis();
+  while (millis() - currentTime < TETANUS_DURATION){
+    // Leave blank
+  }
+  // delay(2000);
   digitalWrite(LEDpins, LOW);
-  Serial.print("End Tetanus: ");
+  Serial.print("; End Tetanus: ");
   Serial.println(millis());
-  delay(1000);
+  currentTime = millis();
+  while (millis() - currentTime < 1000){ // To prevent accidental double pushes
+
+  }
 }
   
