@@ -2,9 +2,6 @@
  *  Stim board has single control input, which controls all LEDs through simple transistor switch
  *  Two parameters: stimRate [Hz] and pulseDuration [ms], can be set below
  *  Keep Serial communications on for visual confirmation of pulses on Arduino board (Tx LEDs on board will flash when transmitting information)
- *  
- *  BUGS: Cannot set stimRate below 1 Hz.  NEED TO FIX.
- *        11/4/21 - FIXED
  * 
  *  
  *  Digital Pin 2:  Button or switch for tetanic stimulation.
@@ -14,9 +11,8 @@
  *  Digital Pin 6:  Switch for turning pulsing on and off.  
  *                    HIGH to begin pulsing, LOW to stop pulsing.
  *  
- *  Digital Pin 7:  Control signal for all LEDS through transistor
+ *  Digital Pin 3:  Control signal for all LEDS through transistor - PWM signal
  *  
- *  Digital Pin 24: Constant 5V that feeds into Pin 2.  Used to avoid using 5V pin, in case that's used for the LEDs
  *  
  *  
  *  Eventually, integrate with Processing or Python to create a GUI that Alec can control: 
@@ -24,77 +20,101 @@
  *      2) Pulse Frequency
  *      3) Tetanic stimulation duration
  *      4) Light Intensity
+ *      
  */
 
 /////////////////////////////////// SET PARAMETERS BELOW ///////////////////////////////////////
-const float FREQUENCY = 1; // Hz
-unsigned long PULSE_WIDTH = 100; // ms
-unsigned long TETANUS_DURATION = 2000; // ms
+const float   FREQUENCY         = 1; // Hz
+unsigned long PULSE_WIDTH       = 100; // ms
+unsigned long TETANUS_DURATION  = 2000; // ms
+
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 // PIN Definitions
-const int LEDpins = 7;
-const int interruptPin = 2;
-const int const5VPin = 24;
+const int LEDpins = 3;
+const int buttonPin = 2;
 const int pulsingModePin = 6;
+const int AnalogInputPin = A7;
 
 volatile boolean flag = false; // ISR flag
 
 const int period = 1000 / FREQUENCY; // ms
 void setup() {
   pinMode(LEDpins,        OUTPUT); // pin output goes to transistor, turns all LEDs on and off
-  pinMode(interruptPin,   INPUT); // Pin to trigger interrupt on HIGH
-  pinMode(const5VPin,     OUTPUT); // Pin that's always HIGH
+  pinMode(buttonPin,      INPUT); // Pin to trigger interrupt on HIGH
   pinMode(pulsingModePin, INPUT); // toggle for pulsing mode on and off
-
+  pinMode(AnalogInputPin, INPUT); // to be translated to PWM
+  pinMode(13,             OUTPUT);
+  pinMode(A4,             OUTPUT);
   digitalWrite(LEDpins,     LOW); // starts LOW
-  digitalWrite(const5VPin,  HIGH); // starts (and stays) HIGH
-
-  attachInterrupt(digitalPinToInterrupt(interruptPin), myISR, RISING);
+  digitalWrite(buttonPin, HIGH);
+  digitalWrite(13, LOW);
+  //attachInterrupt(digitalPinToInterrupt(buttonPin), myISR, RISING);
   // Uncomment below if serial comm needed (debugging)
+  
   Serial.begin(9600);
   Serial.println(period);
 }
 
 void loop() {
-  unsigned long loopStartTime = millis(); // Get 
-  if (flag == true) {
-    if (digitalRead(pulsingModePin) == 0) {
-      tetanus();
-    }
-    flag = false;
-  }
-
+  int AnalogVal = analogRead(AnalogInputPin);
+  //Serial.println(map(AnalogVal, 0, 1023, 0, 100));
+  
   if (digitalRead(pulsingModePin) != 0) {
-    
-    // Set all to high (turn LEDs on)
-    digitalWrite(LEDpins,HIGH);
-    Serial.print("ON: ");
-    Serial.print(millis());
-    Serial.print(',');
-    // pause for pulse duration
-    unsigned long t = millis();
-    while (t - loopStartTime < PULSE_WIDTH) {
-      t = millis();
-      
+    digitalWrite(LEDpins, LOW);
+    digitalWrite(13, LOW);
+    analogWrite(A4, 0);
+    single_pulse(PULSE_WIDTH, period, AnalogVal);
+  }
+  else if (digitalRead(pulsingModePin) == 0) {
+    digitalWrite(LEDpins, LOW);
+    digitalWrite(13, LOW);
+    if (digitalRead(buttonPin) == LOW) {
+      //tetanus();
+      analogWrite(LEDpins, AnalogVal / 4);
+      Serial.print(" ");
+      digitalWrite(13, HIGH);
+      analogWrite(A4, 2.5);
     }
     
-    // Set all to low (turn LEDs off)
-    digitalWrite(LEDpins,LOW);
-    Serial.print("OFF: ");
-    Serial.println(t);
-    // pause for rest of stimulation frequency 
-    t = millis();
-    while (t - loopStartTime < period){
-      t = millis();
-    }
   }
 }
 
-void myISR() {
-  flag = true;
+
+
+void single_pulse(int PULSE_WIDTH, int PERIOD, int AnalogVal) {
+  unsigned long loopStartTime = millis();
+    
+  // Set all to high (turn LEDs on)
+  analogWrite(LEDpins, AnalogVal / 4);
+  digitalWrite(13, HIGH);
+  analogWrite(A4, 2.5);
+  Serial.print("ON: ");
+  Serial.print(millis());
+  Serial.print(',');
+  // pause for pulse duration
+  unsigned long t = millis();
+  while (t - loopStartTime < PULSE_WIDTH) {
+    t = millis();
+    
+  }
+  
+  // Set all to low (turn LEDs off)
+  digitalWrite(LEDpins,LOW);
+  digitalWrite(13, LOW);
+  analogWrite(A4, 0);
+  Serial.print("OFF: ");
+  Serial.println(t);
+  // pause for rest of stimulation frequency 
+  t = millis();
+  while (t - loopStartTime < period){
+    t = millis();
+  }
 }
+
+
+
 void tetanus() {
   flag = true;
   digitalWrite(LEDpins, LOW);
@@ -116,5 +136,6 @@ void tetanus() {
   while (millis() - currentTime < 1000){ // To prevent accidental double pushes
 
   }
+  flag = false;
 }
   
